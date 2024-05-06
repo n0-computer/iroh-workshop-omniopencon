@@ -11,9 +11,11 @@ anyhow = "1.0.82"
 # command line argument parsing
 clap = { version = "4.5.4", features = ["derive"] }
 # base types
-iroh-base = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
+iroh-base = { version = "0.15" }
 # iroh networking
-iroh-net = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
+iroh-net = { version = "0.15" }
+# mainline discovery
+iroh-pkarr-node-discovery = "0.3.0"
 # quinn QUIC implementation
 quinn = "0.10.2"
 # async runtime

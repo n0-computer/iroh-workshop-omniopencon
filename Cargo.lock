@@ -1589,7 +1589,8 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 [[package]]
 name = "iroh-base"
 version = "0.15.0"
-source = "git+https://github.com/n0-computer/iroh?rev=f099dab7742106eb49b36161d8e1b5ff4ed70c42#f099dab7742106eb49b36161d8e1b5ff4ed70c42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b4ff15b3a7bbecfa19396dfd6af7d20e02e60dd817e13b617dfc79d43188997"
 dependencies = [
  "aead",
  "anyhow",
@@ -1639,7 +1640,8 @@ dependencies = [
 [[package]]
 name = "iroh-metrics"
 version = "0.15.0"
-source = "git+https://github.com/n0-computer/iroh?rev=f099dab7742106eb49b36161d8e1b5ff4ed70c42#f099dab7742106eb49b36161d8e1b5ff4ed70c42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6196daef67717a1cc8598eef64939525f7ccecc8d6692b3283086771121d9226"
 dependencies = [
  "anyhow",
  "erased_set",
@@ -1659,7 +1661,8 @@ dependencies = [
 [[package]]
 name = "iroh-net"
 version = "0.15.0"
-source = "git+https://github.com/n0-computer/iroh?rev=f099dab7742106eb49b36161d8e1b5ff4ed70c42#f099dab7742106eb49b36161d8e1b5ff4ed70c42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "824cb1b5c624d3e0179b4a23deaca80a8717608aeada5983ca17f139627ab7d9"
 dependencies = [
  "aead",
  "anyhow",
@@ -1729,6 +1732,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-pkarr-node-discovery"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af890c4ac1ef6011be381ec05c71852bd9b723aca3eda17758d08f6f5d524961"
+dependencies = [
+ "anyhow",
+ "futures-lite",
+ "genawaiter",
+ "iroh-net",
+ "pkarr",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1793,12 +1811,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
 
 [[package]]
+name = "lru"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3262e75e648fce39813cb56ac41f3c3e3f65217ebf3844d818d1f9398cfb0dc"
+
+[[package]]
 name = "lru-cache"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31e24f1ad8321ca0e8a1e0ac13f23cb668e6f5466c2c57319f6a5cf1cc8e3b1c"
 dependencies = [
  "linked-hash-map",
+]
+
+[[package]]
+name = "mainline"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "907bd8136f5eb985f3c0faa70051d4809c7e0cfbcc5700bec2ceb5df0de118ca"
+dependencies = [
+ "bytes",
+ "crc",
+ "ed25519-dalek",
+ "flume",
+ "lru",
+ "rand",
+ "serde",
+ "serde_bencode",
+ "serde_bytes",
+ "sha1_smol",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -2328,6 +2372,7 @@ dependencies = [
  "clap",
  "iroh-base",
  "iroh-net",
+ "iroh-pkarr-node-discovery",
  "quinn",
  "tokio",
  "tracing",
@@ -2343,6 +2388,7 @@ checksum = "242ae92dfb9d2ba3aaa9caf4723e72043bc50729ad05a763771771ba03196ffb"
 dependencies = [
  "bytes",
  "ed25519-dalek",
+ "mainline",
  "rand",
  "reqwest",
  "self_cell",
@@ -3159,6 +3205,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bencode"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a70dfc7b7438b99896e7f8992363ab8e2c4ba26aa5ec675d32d1c3c2c33d413e"
+dependencies = [
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b8497c313fd43ab992087548117643f6fcd935cbf36f176ffda0aacf9591734"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.200"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3212,6 +3277,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae1a47186c03a32177042e55dbc5fd5aee900b8e0069a8d70fba96a9375cd012"
 
 [[package]]
 name = "sha2"

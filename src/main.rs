@@ -1,12 +1,12 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher},
     key::{PublicKey, SecretKey},
     magic_endpoint,
     ticket::NodeTicket,
     MagicEndpoint,
 };
+use iroh_pkarr_node_discovery::PkarrNodeDiscovery;
 use tracing::info;
 mod util;
 use util::*;
@@ -24,8 +24,8 @@ struct Args {
 async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let secret_key = SecretKey::generate();
     let public_key = secret_key.public();
-    // Use the default DNS discovery.
-    let discovery = DnsDiscovery::n0_dns();
+    // Use the default PKARR discovery. We just read from the DHT, so we don't need a private key.
+    let discovery = PkarrNodeDiscovery::default();
     // Create a new MagicEndpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
     let endpoint = MagicEndpoint::builder()
@@ -81,8 +81,13 @@ async fn handle_connecting(my_id: &PublicKey, connecting: quinn::Connecting) -> 
 async fn accept() -> anyhow::Result<()> {
     let secret_key = get_or_create_secret()?;
     let public_key = secret_key.public();
-    // Use the default DNS discovery.
-    let discovery = PkarrPublisher::n0_dns(secret_key.clone());
+    // Use the default PKARR discovery. As accepting node, we want to publish
+    // our address to the DHT, so we need to provide the secret key.
+    // other than that, there is no config. There is only one Mainline DHT globally.
+    // (although you could provide other bootstrap nodes to run an internal DHT).
+    let discovery = PkarrNodeDiscovery::builder()
+        .secret_key(secret_key.clone())
+        .build()?;
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key)
         .discovery(Box::new(discovery))
@@ -97,12 +102,10 @@ async fn accept() -> anyhow::Result<()> {
     let mut short = addr;
     short.apply_options(AddrInfoOptions::Id);
     println!("short: {}", NodeTicket::new(short)?);
-    println!("To see the published info, run:");
-    println!(
-        "dig TXT @dns.iroh.link _iroh.{}.{}",
-        z32_node_id(&public_key),
-        "dns.iroh.link"
-    );
+    println!("To see the published info, open:");
+    println!("https://app.pkarr.org/?pk={}", z32_node_id(&public_key));
+    println!("To see DHT publishing details, run with");
+    println!("RUST_LOG=iroh_pkarr_node_discovery=trace");
     while let Some(connecting) = endpoint.accept().await {
         // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
         if let Err(cause) = handle_connecting(&public_key, connecting).await {
