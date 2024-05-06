@@ -73,15 +73,27 @@ async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::
     Ok(())
 }
 
+async fn handle_event(from: PublicKey, msg: Message) -> anyhow::Result<()> {
+    match msg {
+        Message::Message { text } => {
+            println!("{}> {}", from, text);
+        } // more message types will be added later
+    }
+    Ok(())
+}
+
 /// Print messages from the gossip stream to stdout.
 async fn print_messages(gossip: Gossip, topic: TopicId) -> anyhow::Result<()> {
     let mut stream = gossip.subscribe(topic).await?;
     while let Ok(event) = stream.recv().await {
         match event {
             Event::Received(ev) => {
-                let text = String::from_utf8_lossy(&ev.content);
-                tracing::info!("received message: {}", text);
-                println!("message {}", text);
+                let Ok((from, msg)) = SignedMessage::verify_and_decode(&ev.content) else {
+                    continue;
+                };
+                if let Err(cause) = handle_event(from, msg).await {
+                    tracing::warn!("error handling message: {}", cause);
+                }
             }
             ev => {
                 tracing::info!("event {:?}", ev);
@@ -136,7 +148,9 @@ async fn main() -> anyhow::Result<()> {
     println!("joined topic");
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
     while let Some(line) = stdin.next_line().await? {
-        gossip.broadcast(topic, line.into_bytes().into()).await?;
+        let msg = Message::Message { text: line };
+        let msg = SignedMessage::sign_and_encode(&secret_key, &msg)?;
+        gossip.broadcast(topic, msg.into()).await?;
     }
     Ok(())
 }
