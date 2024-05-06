@@ -87,6 +87,7 @@ async fn accept() -> anyhow::Result<()> {
     // (although you could provide other bootstrap nodes to run an internal DHT).
     let discovery = PkarrNodeDiscovery::builder()
         .secret_key(secret_key.clone())
+        .include_direct_addresses(true)
         .build()?;
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key)
