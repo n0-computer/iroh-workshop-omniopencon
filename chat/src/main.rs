@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_gossip::{
@@ -163,7 +165,25 @@ async fn main() -> anyhow::Result<()> {
     println!("joined topic");
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
     while let Some(line) = stdin.next_line().await? {
-        let msg = Message::Message { text: line };
+        let msg = if let Some(private) = line.strip_prefix("/for ") {
+            // yeah yeah, there are nicer ways to do this, sue me...
+            let mut parts = private.splitn(2, ' ');
+            let Some(to) = parts.next() else {
+                continue;
+            };
+            let Some(msg) = parts.next() else {
+                continue;
+            };
+            let Ok(to) = PublicKey::from_str(to) else {
+                continue;
+            };
+            let mut encrypted = msg.as_bytes().to_vec();
+            // encrypt the data in place
+            secret_key.shared(&to).seal(&mut encrypted);
+            Message::Direct { to, encrypted }
+        } else {
+            Message::Message { text: line }
+        };
         let msg = SignedMessage::sign_and_encode(&secret_key, &msg)?;
         gossip.broadcast(topic, msg.into()).await?;
     }
