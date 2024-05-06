@@ -74,13 +74,14 @@ async fn handle_connecting(my_id: &PublicKey, connecting: quinn::Connecting) -> 
 
 /// Accept incoming connections.
 async fn accept() -> anyhow::Result<()> {
-    let secret_key = SecretKey::generate();
+    let secret_key = get_or_create_secret()?;
     let public_key = secret_key.public();
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key)
         .alpns(vec![PIPE_ALPN.to_vec()])
         .bind(0)
         .await?;
+    wait_for_relay(&endpoint).await?;
     let addr = endpoint.my_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
