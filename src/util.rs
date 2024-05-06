@@ -1,6 +1,9 @@
 use std::str::FromStr;
 
-use iroh_net::{key::SecretKey, MagicEndpoint};
+use iroh_net::{
+    key::{PublicKey, SecretKey},
+    MagicEndpoint,
+};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Copy from the remote to stdout, prepending the author's name.
@@ -45,4 +48,9 @@ pub fn get_or_create_secret() -> anyhow::Result<SecretKey> {
         println!("To keep the node id stable, set the SECRET environment variable");
         Ok(secret)
     }
+}
+
+/// Print public key (aka node id) as a z32 string, compatible with https://pkarr.org/
+pub fn z32_node_id(node_id: &PublicKey) -> String {
+    zbase32::encode_full_bytes(node_id.as_bytes().as_slice())
 }

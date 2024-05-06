@@ -1,7 +1,11 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher}, key::{PublicKey, SecretKey}, magic_endpoint, ticket::NodeTicket, MagicEndpoint
+    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher},
+    key::{PublicKey, SecretKey},
+    magic_endpoint,
+    ticket::NodeTicket,
+    MagicEndpoint,
 };
 use tracing::info;
 mod util;
@@ -93,6 +97,12 @@ async fn accept() -> anyhow::Result<()> {
     let mut short = addr;
     short.apply_options(AddrInfoOptions::Id);
     println!("short: {}", NodeTicket::new(short)?);
+    println!("To see the published info, run:");
+    println!(
+        "dig TXT @dns.iroh.link _iroh.{}.{}",
+        z32_node_id(&public_key),
+        "dns.iroh.link"
+    );
     while let Some(connecting) = endpoint.accept().await {
         // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
         if let Err(cause) = handle_connecting(&public_key, connecting).await {
