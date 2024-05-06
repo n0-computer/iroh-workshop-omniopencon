@@ -1,5 +1,10 @@
 use clap::Parser;
-use iroh_net::{key::SecretKey, magic_endpoint, ticket::NodeTicket, MagicEndpoint};
+use iroh_net::{
+    key::{PublicKey, SecretKey},
+    magic_endpoint,
+    ticket::NodeTicket,
+    MagicEndpoint,
+};
 use tracing::info;
 mod util;
 use util::*;
@@ -38,6 +43,35 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Handle a single incoming connection.
+async fn handle_connecting(my_id: &PublicKey, connecting: quinn::Connecting) -> anyhow::Result<()> {
+    info!("connection attempt");
+    // accept the connection and get the ALPN and the bidirectional stream.
+    let (remote_node_id, alpn, connection) = magic_endpoint::accept_conn(connecting).await?;
+    info!(
+        "got connection from {} using ALPN {:?}",
+        remote_node_id, alpn
+    );
+    // check if the ALPN is what we expect.
+    if alpn.as_bytes() != PIPE_ALPN {
+        tracing::warn!("unexpected ALPN: {:?}", alpn);
+        return Ok(());
+    }
+    // we have already accepted the connection, but we need to accept a stream on the connection.
+    let (mut send, recv) = connection.accept_bi().await?;
+    info!("accepted bidirectional stream");
+    info!("copying from stdin to remote");
+    let author = remote_node_id.to_string();
+    // Send a greeting to the remote node.
+    send.write_all(format!("hello from {}\n", my_id).as_bytes())
+        .await?;
+    // Spawn two tasks to copy data in both directions.
+    tokio::spawn(copy_stdin_to(send));
+    tokio::spawn(copy_to_stdout(author, recv));
+    // this will return immediately, the tasks will keep running in the background.
+    Ok(())
+}
+
 /// Accept incoming connections.
 async fn accept() -> anyhow::Result<()> {
     let secret_key = SecretKey::generate();
@@ -52,8 +86,10 @@ async fn accept() -> anyhow::Result<()> {
     println!("Listening on {:#?}", addr.info);
     println!("ticket: {}", NodeTicket::new(addr)?);
     while let Some(connecting) = endpoint.accept().await {
-        // handle each incoming connection in separate tasks.
-        todo!();
+        // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
+        if let Err(cause) = handle_connecting(&public_key, connecting).await {
+            tracing::warn!("error handling connection: {:?}", cause);
+        }
     }
     Ok(())
 }
