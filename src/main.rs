@@ -1,6 +1,8 @@
 use clap::Parser;
-use iroh_net::{key::SecretKey, ticket::NodeTicket, MagicEndpoint};
+use iroh_net::{key::SecretKey, magic_endpoint, ticket::NodeTicket, MagicEndpoint};
 use tracing::info;
+mod util;
+use util::*;
 
 /// The ALPN we use for this protocol.
 const PIPE_ALPN: &[u8] = b"JOTB_PIPE";
@@ -25,7 +27,15 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     info!("connecting to {:?}", addr);
     let connection = endpoint.connect(addr, PIPE_ALPN).await?;
     let (mut send, recv) = connection.open_bi().await?;
-    todo!()
+    tracing::info!("opened bidirectional stream");
+    tracing::info!("copying from stdin to remote");
+    let remote_node_id = magic_endpoint::get_remote_node_id(&connection)?;
+    let remote = remote_node_id.to_string();
+    send.write_all(format!("hello from {}\n", public_key).as_bytes())
+        .await?;
+    tokio::spawn(copy_to_stdout(remote, recv));
+    copy_stdin_to(send).await?;
+    Ok(())
 }
 
 #[tokio::main]
