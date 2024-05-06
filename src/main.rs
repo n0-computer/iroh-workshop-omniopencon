@@ -1,9 +1,7 @@
 use clap::Parser;
+use iroh_base::node_addr::AddrInfoOptions;
 use iroh_net::{
-    key::{PublicKey, SecretKey},
-    magic_endpoint,
-    ticket::NodeTicket,
-    MagicEndpoint,
+    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher}, key::{PublicKey, SecretKey}, magic_endpoint, ticket::NodeTicket, MagicEndpoint
 };
 use tracing::info;
 mod util;
@@ -22,10 +20,13 @@ struct Args {
 async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let secret_key = SecretKey::generate();
     let public_key = secret_key.public();
+    // Use the default DNS discovery.
+    let discovery = DnsDiscovery::n0_dns();
     // Create a new MagicEndpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key)
+        .discovery(Box::new(discovery))
         .bind(0)
         .await?;
     let addr = ticket.node_addr().clone();
@@ -76,8 +77,11 @@ async fn handle_connecting(my_id: &PublicKey, connecting: quinn::Connecting) -> 
 async fn accept() -> anyhow::Result<()> {
     let secret_key = get_or_create_secret()?;
     let public_key = secret_key.public();
+    // Use the default DNS discovery.
+    let discovery = PkarrPublisher::n0_dns(secret_key.clone());
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key)
+        .discovery(Box::new(discovery))
         .alpns(vec![PIPE_ALPN.to_vec()])
         .bind(0)
         .await?;
@@ -85,7 +89,10 @@ async fn accept() -> anyhow::Result<()> {
     let addr = endpoint.my_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
-    println!("ticket: {}", NodeTicket::new(addr)?);
+    println!("ticket: {}", NodeTicket::new(addr.clone())?);
+    let mut short = addr;
+    short.apply_options(AddrInfoOptions::Id);
+    println!("short: {}", NodeTicket::new(short)?);
     while let Some(connecting) = endpoint.accept().await {
         // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
         if let Err(cause) = handle_connecting(&public_key, connecting).await {
