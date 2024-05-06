@@ -61,7 +61,8 @@ async fn main() -> anyhow::Result<()> {
         endpoint.add_node_addr(addr.clone())?;
         ids.push(addr.node_id);
     }
-    let gossip = Gossip::from_endpoint(endpoint.clone(), proto::Config::default(), &my_addr.info);
+    let gossip = Gossip::from_endpoint(endpoint.clone(), iroh_gossip::proto::Config::default(), &my_addr.info);
+    tokio::spawn(handle_connections(endpoint, gossip.clone()));
     // chat goes here
     Ok(())
 }
