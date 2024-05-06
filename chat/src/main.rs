@@ -1,6 +1,6 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
-use iroh_gossip::proto::TopicId;
+use iroh_gossip::{net::Gossip, proto::TopicId};
 use iroh_net::{ticket::NodeTicket, MagicEndpoint};
 
 mod util;
@@ -32,6 +32,14 @@ async fn main() -> anyhow::Result<()> {
     let short = NodeTicket::new(my_addr.clone())?;
     println!("Connect to me using {}", short);
     wait_for_relay(&endpoint).await?;
+    // add all the info from the tickets to the endpoint
+    let mut ids = Vec::new();
+    for ticket in &args.tickets {
+        let addr = ticket.node_addr();
+        endpoint.add_node_addr(addr.clone())?;
+        ids.push(addr.node_id);
+    }
+    let gossip = Gossip::from_endpoint(endpoint.clone(), proto::Config::default(), &my_addr.info);
     // chat goes here
     Ok(())
 }
