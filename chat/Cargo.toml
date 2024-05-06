@@ -26,6 +26,8 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 # zbase32 crate, just for printing zbase32 node ids
 zbase32 = "0.1.2"
+serde = { version = "1.0.200", features = ["derive"] }
+postcard = "1.0.8"
 
 [patch.crates-io]
 iroh-net = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }

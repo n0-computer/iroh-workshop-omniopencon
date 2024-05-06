@@ -6,18 +6,56 @@ use iroh_gossip::{
 };
 use iroh_net::{
     discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery},
+    key::{PublicKey, SecretKey, Signature},
     magic_endpoint,
     ticket::NodeTicket,
     MagicEndpoint,
 };
 
 mod util;
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use util::*;
 
 #[derive(Debug, Parser)]
 struct Args {
     tickets: Vec<NodeTicket>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SignedMessage {
+    from: PublicKey,
+    data: Vec<u8>,
+    signature: Signature,
+}
+
+impl SignedMessage {
+    pub fn verify_and_decode(bytes: &[u8]) -> anyhow::Result<(PublicKey, Message)> {
+        let signed_message: Self = postcard::from_bytes(bytes)?;
+        let key: PublicKey = signed_message.from;
+        key.verify(&signed_message.data, &signed_message.signature)?;
+        let message: Message = postcard::from_bytes(&signed_message.data)?;
+        Ok((signed_message.from, message))
+    }
+
+    pub fn sign_and_encode(secret_key: &SecretKey, message: &Message) -> anyhow::Result<Vec<u8>> {
+        let data = postcard::to_stdvec(&message)?;
+        let signature = secret_key.sign(&data);
+        let from: PublicKey = secret_key.public();
+        let signed_message = Self {
+            from,
+            data,
+            signature,
+        };
+        let encoded = postcard::to_stdvec(&signed_message)?;
+        Ok(encoded)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+enum Message {
+    Message { text: String },
+    // more message types will be added later
 }
 
 /// Handle incoming connections by dispatching them to the right handler.
