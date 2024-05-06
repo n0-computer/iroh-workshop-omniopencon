@@ -1,11 +1,18 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
-use iroh_gossip::{net::Gossip, proto::TopicId};
+use iroh_gossip::{
+    net::{Event, Gossip},
+    proto::TopicId,
+};
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery}, magic_endpoint, ticket::NodeTicket, MagicEndpoint
+    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery},
+    magic_endpoint,
+    ticket::NodeTicket,
+    MagicEndpoint,
 };
 
 mod util;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use util::*;
 
 #[derive(Debug, Parser)]
@@ -24,6 +31,24 @@ async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::
             }
             anyhow::Ok(())
         });
+    }
+    Ok(())
+}
+
+/// Print messages from the gossip stream to stdout.
+async fn print_messages(gossip: Gossip, topic: TopicId) -> anyhow::Result<()> {
+    let mut stream = gossip.subscribe(topic).await?;
+    while let Ok(event) = stream.recv().await {
+        match event {
+            Event::Received(ev) => {
+                let text = String::from_utf8_lossy(&ev.content);
+                tracing::info!("received message: {}", text);
+                println!("message {}", text);
+            }
+            ev => {
+                tracing::info!("event {:?}", ev);
+            }
+        }
     }
     Ok(())
 }
@@ -61,8 +86,19 @@ async fn main() -> anyhow::Result<()> {
         endpoint.add_node_addr(addr.clone())?;
         ids.push(addr.node_id);
     }
-    let gossip = Gossip::from_endpoint(endpoint.clone(), iroh_gossip::proto::Config::default(), &my_addr.info);
+    let gossip = Gossip::from_endpoint(
+        endpoint.clone(),
+        iroh_gossip::proto::Config::default(),
+        &my_addr.info,
+    );
     tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    // chat goes here
+    tokio::spawn(print_messages(gossip.clone(), topic));
+    println!("joining topic {}", topic);
+    gossip.join(topic, ids).await?.await?;
+    println!("joined topic");
+    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
+    while let Some(line) = stdin.next_line().await? {
+        gossip.broadcast(topic, line.into_bytes().into()).await?;
+    }
     Ok(())
 }
