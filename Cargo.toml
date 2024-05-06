@@ -22,3 +22,9 @@ tokio = { version = "1.37.0", features = ["full"] }
 tracing = "0.1.40"
 # logging to console
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+# zbase32 crate, just for printing zbase32 node ids
+zbase32 = "0.1.2"
+
+[patch.crates-io]
+iroh-net = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
+iroh-base = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
