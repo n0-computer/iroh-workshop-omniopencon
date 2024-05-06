@@ -1,7 +1,9 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_gossip::{net::Gossip, proto::TopicId};
-use iroh_net::{ticket::NodeTicket, MagicEndpoint};
+use iroh_net::{
+    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery}, magic_endpoint, ticket::NodeTicket, MagicEndpoint
+};
 
 mod util;
 use util::*;
@@ -11,6 +13,21 @@ struct Args {
     tickets: Vec<NodeTicket>,
 }
 
+/// Handle incoming connections by dispatching them to the right handler.
+async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::Result<()> {
+    while let Some(connecting) = endpoint.accept().await {
+        let gossip = gossip.clone();
+        tokio::spawn(async move {
+            let (_, alpn, connection) = magic_endpoint::accept_conn(connecting).await?;
+            if alpn.as_bytes() == iroh_gossip::net::GOSSIP_ALPN {
+                gossip.handle_connection(connection).await?;
+            }
+            anyhow::Ok(())
+        });
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -18,10 +35,15 @@ async fn main() -> anyhow::Result<()> {
     let secret_key = get_or_create_secret()?;
     let public_key = secret_key.public();
     let topic = TopicId::from([0u8; 32]);
+    let discovery = Box::new(ConcurrentDiscovery::from_services(vec![
+        Box::new(DnsDiscovery::n0_dns()),
+        Box::new(PkarrPublisher::n0_dns(secret_key.clone())),
+    ]));
 
     let endpoint = MagicEndpoint::builder()
         .secret_key(secret_key.clone())
         .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
+        .discovery(discovery)
         .bind(0)
         .await?;
     let mut my_addr = endpoint.my_addr().await?;
