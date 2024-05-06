@@ -2398,6 +2398,7 @@ dependencies = [
  "iroh-net",
  "postcard",
  "quinn",
+ "rand",
  "serde",
  "tokio",
  "tracing",

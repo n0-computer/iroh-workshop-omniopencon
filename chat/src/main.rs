@@ -15,6 +15,7 @@ use iroh_net::{
 };
 
 mod util;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use util::*;
@@ -26,6 +27,7 @@ struct Args {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SignedMessage {
+    uid: u128,
     from: PublicKey,
     data: Vec<u8>,
     signature: Signature,
@@ -44,10 +46,12 @@ impl SignedMessage {
         let data = postcard::to_stdvec(&message)?;
         let signature = secret_key.sign(&data);
         let from: PublicKey = secret_key.public();
+        let uid = rand::thread_rng().gen();
         let signed_message = Self {
             from,
             data,
             signature,
+            uid,
         };
         let encoded = postcard::to_stdvec(&signed_message)?;
         Ok(encoded)
