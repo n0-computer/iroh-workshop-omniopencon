@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_gossip::{
@@ -15,7 +13,6 @@ use iroh_net::{
 };
 
 mod util;
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use util::*;
@@ -27,7 +24,6 @@ struct Args {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SignedMessage {
-    uid: u128,
     from: PublicKey,
     data: Vec<u8>,
     signature: Signature,
@@ -46,12 +42,10 @@ impl SignedMessage {
         let data = postcard::to_stdvec(&message)?;
         let signature = secret_key.sign(&data);
         let from: PublicKey = secret_key.public();
-        let uid = rand::thread_rng().gen();
         let signed_message = Self {
             from,
             data,
             signature,
-            uid,
         };
         let encoded = postcard::to_stdvec(&signed_message)?;
         Ok(encoded)
@@ -61,7 +55,6 @@ impl SignedMessage {
 #[derive(Debug, Serialize, Deserialize)]
 enum Message {
     Message { text: String },
-    Direct { to: PublicKey, encrypted: Vec<u8> },
     // more message types will be added later
 }
 
@@ -80,31 +73,17 @@ async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::
     Ok(())
 }
 
-async fn handle_event(from: PublicKey, secret_key: SecretKey, msg: Message) -> anyhow::Result<()> {
+async fn handle_event(from: PublicKey, msg: Message) -> anyhow::Result<()> {
     match msg {
         Message::Message { text } => {
             println!("{}> {}", from, text);
-        }
-        Message::Direct { to, encrypted } => {
-            if to != secret_key.public() {
-                // not for us
-                return Ok(());
-            }
-            let mut buffer = encrypted;
-            secret_key.shared(&from).open(&mut buffer)?;
-            let message = std::str::from_utf8(&buffer)?;
-            println!("got encrypted message from {}: {}", from, message);
         } // more message types will be added later
     }
     Ok(())
 }
 
 /// Print messages from the gossip stream to stdout.
-async fn print_messages(
-    gossip: Gossip,
-    secret_key: SecretKey,
-    topic: TopicId,
-) -> anyhow::Result<()> {
+async fn print_messages(gossip: Gossip, topic: TopicId) -> anyhow::Result<()> {
     let mut stream = gossip.subscribe(topic).await?;
     while let Ok(event) = stream.recv().await {
         match event {
@@ -112,7 +91,7 @@ async fn print_messages(
                 let Ok((from, msg)) = SignedMessage::verify_and_decode(&ev.content) else {
                     continue;
                 };
-                if let Err(cause) = handle_event(from, secret_key.clone(), msg).await {
+                if let Err(cause) = handle_event(from, msg).await {
                     tracing::warn!("error handling message: {}", cause);
                 }
             }
@@ -129,7 +108,7 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
     let args = Args::parse();
     let secret_key = get_or_create_secret()?;
-    let public_key = secret_key.public();
+    let _public_key = secret_key.public();
     let topic = TopicId::from([0u8; 32]);
     let discovery = Box::new(ConcurrentDiscovery::from_services(vec![
         Box::new(DnsDiscovery::n0_dns()),
@@ -163,31 +142,13 @@ async fn main() -> anyhow::Result<()> {
         &my_addr.info,
     );
     tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    tokio::spawn(print_messages(gossip.clone(), secret_key.clone(), topic));
+    tokio::spawn(print_messages(gossip.clone(), topic));
     println!("joining topic {}", topic);
     gossip.join(topic, ids).await?.await?;
     println!("joined topic");
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
     while let Some(line) = stdin.next_line().await? {
-        let msg = if let Some(private) = line.strip_prefix("/for ") {
-            // yeah yeah, there are nicer ways to do this, sue me...
-            let mut parts = private.splitn(2, ' ');
-            let Some(to) = parts.next() else {
-                continue;
-            };
-            let Some(msg) = parts.next() else {
-                continue;
-            };
-            let Ok(to) = PublicKey::from_str(to) else {
-                continue;
-            };
-            let mut encrypted = msg.as_bytes().to_vec();
-            // encrypt the data in place
-            secret_key.shared(&to).seal(&mut encrypted);
-            Message::Direct { to, encrypted }
-        } else {
-            Message::Message { text: line }
-        };
+        let msg = Message::Message { text: line };
         let msg = SignedMessage::sign_and_encode(&secret_key, &msg)?;
         gossip.broadcast(topic, msg.into()).await?;
     }
