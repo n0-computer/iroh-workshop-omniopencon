@@ -450,6 +450,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat_diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "quinn",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.38"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2557,6 +2573,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zbase32",
+]
+
+[[package]]
+name = "pipe_diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "iroh-base",
+ "iroh-net",
+ "quinn",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -2,14 +2,16 @@
 resolver = "2"
 
 members = [
-    "chat/version1",
-    "chat/version2",
-    "chat/version3",
-    "chat/version4",
-    "pipe/version1",
-    "pipe/version2",
-    "pipe/version3",
-    "pipe/version4",
+    "chat_diy",
+    "chat1",
+    "chat2",
+    "chat3",
+    "chat4",
+    "pipe_diy",
+    "pipe1",
+    "pipe2",
+    "pipe3",
+    "pipe4",
 ]
 
 [patch.crates-io]
