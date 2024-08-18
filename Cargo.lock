@@ -2959,9 +2959,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "iroh-base 0.15.0",
- "iroh-net 0.15.0",
- "quinn 0.10.2",
+ "iroh-base 0.22.0",
+ "iroh-net 0.22.0",
  "tokio",
  "tracing",
  "tracing-subscriber",

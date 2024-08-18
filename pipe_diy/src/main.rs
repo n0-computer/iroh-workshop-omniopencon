@@ -1,17 +1,17 @@
 #![allow(unused_imports, unused_variables, dead_code)]
 use clap::Parser;
 use iroh_net::{
+    endpoint,
     key::{PublicKey, SecretKey},
-    magic_endpoint,
     ticket::NodeTicket,
-    MagicEndpoint,
+    Endpoint,
 };
 use tracing::info;
 mod util;
 use util::*;
 
 /// The ALPN we use for this protocol.
-const PIPE_ALPN: &[u8] = b"JOTB_PIPE";
+const PIPE_ALPN: &[u8] = b"WEB3_PIPE";
 
 #[derive(Debug, clap::Parser)]
 struct Args {
