@@ -1,18 +1,18 @@
 use clap::Parser;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher},
+    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher},
+    endpoint,
     key::{PublicKey, SecretKey},
-    magic_endpoint,
     ticket::NodeTicket,
-    MagicEndpoint,
+    Endpoint,
 };
 use tracing::info;
 mod util;
 use util::*;
 
 /// The ALPN we use for this protocol.
-const PIPE_ALPN: &[u8] = b"JOTB_PIPE";
+const PIPE_ALPN: &[u8] = b"WEB3_PIPE";
 
 #[derive(Debug, clap::Parser)]
 struct Args {
@@ -28,7 +28,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let discovery = DnsDiscovery::n0_dns();
     // Create a new MagicEndpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
-    let endpoint = MagicEndpoint::builder()
+    let endpoint = Endpoint::builder()
         .secret_key(secret_key)
         .discovery(Box::new(discovery))
         .bind(0)
@@ -39,7 +39,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let (mut send, recv) = connection.open_bi().await?;
     tracing::info!("opened bidirectional stream");
     tracing::info!("copying from stdin to remote");
-    let remote_node_id = magic_endpoint::get_remote_node_id(&connection)?;
+    let remote_node_id = endpoint::get_remote_node_id(&connection)?;
     let remote = remote_node_id.to_string();
     send.write_all(format!("hello from {}\n", public_key).as_bytes())
         .await?;
@@ -49,16 +49,21 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
 }
 
 /// Handle a single incoming connection.
-async fn handle_connecting(my_id: &PublicKey, connecting: quinn::Connecting) -> anyhow::Result<()> {
+async fn handle_connecting(
+    my_id: &PublicKey,
+    mut connecting: iroh_net::endpoint::Connecting,
+) -> anyhow::Result<()> {
     info!("connection attempt");
     // accept the connection and get the ALPN and the bidirectional stream.
-    let (remote_node_id, alpn, connection) = magic_endpoint::accept_conn(connecting).await?;
+    let alpn = connecting.alpn().await?;
+    let connection = connecting.await?;
+    let remote_node_id = endpoint::get_remote_node_id(&connection)?;
     info!(
         "got connection from {} using ALPN {:?}",
         remote_node_id, alpn
     );
     // check if the ALPN is what we expect.
-    if alpn.as_bytes() != PIPE_ALPN {
+    if alpn.as_slice() != PIPE_ALPN {
         tracing::warn!("unexpected ALPN: {:?}", alpn);
         return Ok(());
     }
@@ -83,14 +88,14 @@ async fn accept() -> anyhow::Result<()> {
     let public_key = secret_key.public();
     // Use the default DNS discovery.
     let discovery = PkarrPublisher::n0_dns(secret_key.clone());
-    let endpoint = MagicEndpoint::builder()
+    let endpoint = Endpoint::builder()
         .secret_key(secret_key)
         .discovery(Box::new(discovery))
         .alpns(vec![PIPE_ALPN.to_vec()])
         .bind(0)
         .await?;
     wait_for_relay(&endpoint).await?;
-    let addr = endpoint.my_addr().await?;
+    let addr = endpoint.node_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
     println!("ticket: {}", NodeTicket::new(addr.clone())?);

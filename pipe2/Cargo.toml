@@ -10,12 +10,9 @@ edition = "2021"
 anyhow = "1"
 # command line argument parsing
 clap = { version = "4.5.4", features = ["derive"] }
-# base types
-iroh-base = "0.15"
+iroh-base = "0.22.0"
 # iroh networking
-iroh-net = "0.15"
-# quinn QUIC implementation
-quinn = "0.10.2"
+iroh-net = "0.22"
 # async runtime
 tokio = { version = "1.37.0", features = ["full"] }
 # logging
