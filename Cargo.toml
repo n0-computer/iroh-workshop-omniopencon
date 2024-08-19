@@ -13,8 +13,3 @@ members = [
     "pipe3",
     "pipe4",
 ]
-
-[patch.crates-io]
-iroh-net = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
-iroh-base = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }
-iroh-gossip = { git = "https://github.com/n0-computer/iroh", rev = "f099dab7742106eb49b36161d8e1b5ff4ed70c42" }

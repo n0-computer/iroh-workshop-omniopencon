@@ -26,7 +26,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let public_key = secret_key.public();
     // Use the default PKARR discovery. We just read from the DHT, so we don't need a private key.
     let discovery = PkarrNodeDiscovery::default();
-    // Create a new MagicEndpoint with the secret key.
+    // Create a new Endpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
     let endpoint = Endpoint::builder()
         .secret_key(secret_key)

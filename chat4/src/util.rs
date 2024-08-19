@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
-use iroh_net::{key::SecretKey, MagicEndpoint};
+use iroh_net::{key::SecretKey, Endpoint};
 
 // Wait for the endpoint to figure out its relay address.
-pub async fn wait_for_relay(endpoint: &MagicEndpoint) -> anyhow::Result<()> {
-    while endpoint.my_relay().is_none() {
+pub async fn wait_for_relay(endpoint: &Endpoint) -> anyhow::Result<()> {
+    while endpoint.home_relay().is_none() {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
     Ok(())

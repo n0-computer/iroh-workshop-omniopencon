@@ -1,18 +1,18 @@
 use clap::Parser;
+use futures::StreamExt;
 use iroh_base::node_addr::AddrInfoOptions;
-use iroh_gossip::{
-    net::{Event, Gossip},
-    proto::TopicId,
-};
+use iroh_gossip::{net::Gossip, proto::TopicId};
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery},
-    magic_endpoint,
+    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher, ConcurrentDiscovery},
     ticket::NodeTicket,
-    MagicEndpoint,
+    Endpoint,
 };
 
 mod util;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    select,
+};
 use util::*;
 
 #[derive(Debug, Parser)]
@@ -21,34 +21,17 @@ struct Args {
 }
 
 /// Handle incoming connections by dispatching them to the right handler.
-async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::Result<()> {
-    while let Some(connecting) = endpoint.accept().await {
+async fn handle_connections(endpoint: Endpoint, gossip: Gossip) -> anyhow::Result<()> {
+    while let Some(mut connecting) = endpoint.accept().await {
         let gossip = gossip.clone();
         tokio::spawn(async move {
-            let (_, alpn, connection) = magic_endpoint::accept_conn(connecting).await?;
-            if alpn.as_bytes() == iroh_gossip::net::GOSSIP_ALPN {
+            let alpn = connecting.alpn().await?;
+            let connection = connecting.await?;
+            if &alpn == iroh_gossip::net::GOSSIP_ALPN {
                 gossip.handle_connection(connection).await?;
             }
             anyhow::Ok(())
         });
-    }
-    Ok(())
-}
-
-/// Print messages from the gossip stream to stdout.
-async fn print_messages(gossip: Gossip, topic: TopicId) -> anyhow::Result<()> {
-    let mut stream = gossip.subscribe(topic).await?;
-    while let Ok(event) = stream.recv().await {
-        match event {
-            Event::Received(ev) => {
-                let text = String::from_utf8_lossy(&ev.content);
-                tracing::info!("received message: {}", text);
-                println!("message {}", text);
-            }
-            ev => {
-                tracing::info!("event {:?}", ev);
-            }
-        }
     }
     Ok(())
 }
@@ -65,13 +48,13 @@ async fn main() -> anyhow::Result<()> {
         Box::new(PkarrPublisher::n0_dns(secret_key.clone())),
     ]));
 
-    let endpoint = MagicEndpoint::builder()
+    let endpoint = Endpoint::builder()
         .secret_key(secret_key.clone())
         .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
         .discovery(discovery)
         .bind(0)
         .await?;
-    let mut my_addr = endpoint.my_addr().await?;
+    let mut my_addr = endpoint.node_addr().await?;
     let ticket = NodeTicket::new(my_addr.clone())?;
     println!("I am {}", my_addr.node_id);
     println!("Connect to me using {}", ticket);
@@ -83,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
     let mut ids = Vec::new();
     for ticket in &args.tickets {
         let addr = ticket.node_addr();
-        endpoint.add_node_addr(addr.clone())?;
+        endpoint.add_node_addr(addr.clone()).ok();
         ids.push(addr.node_id);
     }
     let gossip = Gossip::from_endpoint(
@@ -92,13 +75,25 @@ async fn main() -> anyhow::Result<()> {
         &my_addr.info,
     );
     tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    tokio::spawn(print_messages(gossip.clone(), topic));
-    println!("joining topic {}", topic);
-    gossip.join(topic, ids).await?.await?;
-    println!("joined topic");
+    let mut gossip = gossip.join(topic, ids).await?;
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
-    while let Some(line) = stdin.next_line().await? {
-        gossip.broadcast(topic, line.into_bytes().into()).await?;
+    loop {
+        select! {
+            message = gossip.next() => {
+                if let Some(Ok(event)) = message {
+                    println!("{:?}", event);
+                } else {
+                    break;
+                }
+            }
+            line = stdin.next_line() => {
+                if let Ok(Some(line)) = line {
+                    gossip.broadcast(line.into_bytes().into()).await?;
+                } else {
+                    break;
+                }
+            }
+        }
     }
     Ok(())
 }

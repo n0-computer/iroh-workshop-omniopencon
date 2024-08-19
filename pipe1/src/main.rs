@@ -22,7 +22,7 @@ struct Args {
 async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let secret_key = SecretKey::generate();
     let public_key = secret_key.public();
-    // Create a new MagicEndpoint with the secret key.
+    // Create a new Endpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
     let endpoint = Endpoint::builder().secret_key(secret_key).bind(0).await?;
     let addr = ticket.node_addr().clone();

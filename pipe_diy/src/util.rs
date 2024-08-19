@@ -1,10 +1,13 @@
 use std::str::FromStr;
 
-use iroh_net::{key::SecretKey, MagicEndpoint};
+use iroh_net::{key::SecretKey, Endpoint};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Copy from the remote to stdout, prepending the author's name.
-pub async fn copy_to_stdout(author: String, from: quinn::RecvStream) -> anyhow::Result<()> {
+pub async fn copy_to_stdout(
+    author: String,
+    from: iroh_net::endpoint::RecvStream,
+) -> anyhow::Result<()> {
     let mut lines = BufReader::new(from).lines();
     while let Some(line) = lines.next_line().await? {
         tracing::info!("read line: {}", line);
@@ -14,7 +17,7 @@ pub async fn copy_to_stdout(author: String, from: quinn::RecvStream) -> anyhow::
 }
 
 // Copy from stdin to the remote.
-pub async fn copy_stdin_to(mut to: quinn::SendStream) -> anyhow::Result<()> {
+pub async fn copy_stdin_to(mut to: iroh_net::endpoint::SendStream) -> anyhow::Result<()> {
     let from = tokio::io::stdin();
     let mut lines = BufReader::new(from).lines();
     while let Some(line) = lines.next_line().await? {
@@ -25,8 +28,8 @@ pub async fn copy_stdin_to(mut to: quinn::SendStream) -> anyhow::Result<()> {
 }
 
 // Wait for the endpoint to figure out its relay address.
-pub async fn wait_for_relay(endpoint: &MagicEndpoint) -> anyhow::Result<()> {
-    while endpoint.my_relay().is_none() {
+pub async fn wait_for_relay(endpoint: &Endpoint) -> anyhow::Result<()> {
+    while endpoint.home_relay().is_none() {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
     Ok(())

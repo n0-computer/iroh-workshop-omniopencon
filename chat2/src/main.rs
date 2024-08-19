@@ -1,20 +1,23 @@
 use clap::Parser;
+use futures::StreamExt;
 use iroh_base::node_addr::AddrInfoOptions;
 use iroh_gossip::{
-    net::{Event, Gossip},
+    net::{Event, Gossip, GossipEvent},
     proto::TopicId,
 };
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery},
+    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher, ConcurrentDiscovery},
     key::{PublicKey, SecretKey, Signature},
-    magic_endpoint,
     ticket::NodeTicket,
-    MagicEndpoint,
+    Endpoint,
 };
 
 mod util;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::{
+    io::{AsyncBufReadExt, BufReader},
+    select,
+};
 use util::*;
 
 #[derive(Debug, Parser)]
@@ -59,12 +62,13 @@ enum Message {
 }
 
 /// Handle incoming connections by dispatching them to the right handler.
-async fn handle_connections(endpoint: MagicEndpoint, gossip: Gossip) -> anyhow::Result<()> {
-    while let Some(connecting) = endpoint.accept().await {
+async fn handle_connections(endpoint: Endpoint, gossip: Gossip) -> anyhow::Result<()> {
+    while let Some(mut connecting) = endpoint.accept().await {
         let gossip = gossip.clone();
         tokio::spawn(async move {
-            let (_, alpn, connection) = magic_endpoint::accept_conn(connecting).await?;
-            if alpn.as_bytes() == iroh_gossip::net::GOSSIP_ALPN {
+            let alpn = connecting.alpn().await?;
+            let connection = connecting.await?;
+            if &alpn == iroh_gossip::net::GOSSIP_ALPN {
                 gossip.handle_connection(connection).await?;
             }
             anyhow::Ok(())
@@ -82,27 +86,6 @@ async fn handle_event(from: PublicKey, msg: Message) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Print messages from the gossip stream to stdout.
-async fn print_messages(gossip: Gossip, topic: TopicId) -> anyhow::Result<()> {
-    let mut stream = gossip.subscribe(topic).await?;
-    while let Ok(event) = stream.recv().await {
-        match event {
-            Event::Received(ev) => {
-                let Ok((from, msg)) = SignedMessage::verify_and_decode(&ev.content) else {
-                    continue;
-                };
-                if let Err(cause) = handle_event(from, msg).await {
-                    tracing::warn!("error handling message: {}", cause);
-                }
-            }
-            ev => {
-                tracing::info!("event {:?}", ev);
-            }
-        }
-    }
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
@@ -115,13 +98,13 @@ async fn main() -> anyhow::Result<()> {
         Box::new(PkarrPublisher::n0_dns(secret_key.clone())),
     ]));
 
-    let endpoint = MagicEndpoint::builder()
+    let endpoint = Endpoint::builder()
         .secret_key(secret_key.clone())
         .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
         .discovery(discovery)
         .bind(0)
         .await?;
-    let mut my_addr = endpoint.my_addr().await?;
+    let mut my_addr = endpoint.node_addr().await?;
     let ticket = NodeTicket::new(my_addr.clone())?;
     println!("I am {}", my_addr.node_id);
     println!("Connect to me using {}", ticket);
@@ -133,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
     let mut ids = Vec::new();
     for ticket in &args.tickets {
         let addr = ticket.node_addr();
-        endpoint.add_node_addr(addr.clone())?;
+        endpoint.add_node_addr(addr.clone()).ok();
         ids.push(addr.node_id);
     }
     let gossip = Gossip::from_endpoint(
@@ -142,15 +125,32 @@ async fn main() -> anyhow::Result<()> {
         &my_addr.info,
     );
     tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    tokio::spawn(print_messages(gossip.clone(), topic));
-    println!("joining topic {}", topic);
-    gossip.join(topic, ids).await?.await?;
-    println!("joined topic");
+    let mut gossip = gossip.join(topic, ids).await?;
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
-    while let Some(line) = stdin.next_line().await? {
-        let msg = Message::Message { text: line };
-        let msg = SignedMessage::sign_and_encode(&secret_key, &msg)?;
-        gossip.broadcast(topic, msg.into()).await?;
+    loop {
+        select! {
+            message = gossip.next() => {
+                if let Some(Ok(event)) = message {
+                    if let Event::Gossip(GossipEvent::Received(message)) = event {
+                        let (from, msg) = SignedMessage::verify_and_decode(&message.content)?;
+                        if let Err(cause) = handle_event(from, msg).await {
+                            tracing::warn!("error handling message: {}", cause);
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+            line = stdin.next_line() => {
+                if let Ok(Some(line)) = line {
+                    let message = Message::Message { text: line.clone() };
+                    let encoded = SignedMessage::sign_and_encode(&secret_key, &message)?;
+                    gossip.broadcast(encoded.into()).await?;
+                } else {
+                    break;
+                }
+            }
+        }
     }
     Ok(())
 }

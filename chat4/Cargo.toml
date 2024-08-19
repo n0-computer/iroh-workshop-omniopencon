@@ -11,11 +11,11 @@ anyhow = "1"
 # command line argument parsing
 clap = { version = "4.5.4", features = ["derive"] }
 # base types
-iroh-base = { version = "0.15" }
+iroh-base = { version = "0.22" }
 # iroh networking
-iroh-net = { version = "0.15" }
+iroh-net = { version = "0.22" }
 # iroh gossip protocol
-iroh-gossip = { version = "0.15" }
+iroh-gossip = { version = "0.22" }
 # quinn QUIC implementation
 quinn = "0.10.2"
 # async runtime
@@ -29,3 +29,4 @@ zbase32 = "0.1.2"
 serde = { version = "1", features = ["derive"] }
 postcard = "1"
 rand = "0.8.5"
+futures = "0.3.30"

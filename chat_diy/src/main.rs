@@ -6,10 +6,10 @@ use iroh_gossip::{
     proto::TopicId,
 };
 use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr_publish::PkarrPublisher, ConcurrentDiscovery},
-    magic_endpoint,
+    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher, ConcurrentDiscovery},
+    endpoint,
     ticket::NodeTicket,
-    MagicEndpoint,
+    Endpoint,
 };
 
 mod util;
