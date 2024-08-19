@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
 use iroh::{
@@ -22,6 +24,7 @@ struct Args {
 #[derive(Debug, Serialize, Deserialize)]
 enum Message {
     Message { text: String },
+    Direct { to: PublicKey, encrypted: Vec<u8> },
     // more message types will be added later
 }
 
@@ -58,41 +61,52 @@ impl SignedMessage {
     }
 }
 
-async fn handle_event(event: Event) {
-    match event {
-        Event::Gossip(ev) => match ev {
-            GossipEvent::Received(msg) => {
-                let Ok((from, msg)) = SignedMessage::verify_and_decode(&msg.content) else {
-                    tracing::warn!(
-                        "Failed to verify message from node {}: {:?}",
-                        msg.delivered_from,
-                        msg.content
-                    );
-                    return;
-                };
-                match msg {
-                    Message::Message { text } => {
-                        println!("Received message from node {}: {}", from, text);
-                    }
+async fn handle_event(event: Event, secret_key: &SecretKey) -> anyhow::Result<()> {
+    if let Event::Gossip(GossipEvent::Received(msg)) = event {
+        let Ok((from, msg)) = SignedMessage::verify_and_decode(&msg.content) else {
+            tracing::warn!("Failed to verify message {:?}", msg.content);
+            return Ok(());
+        };
+        match msg {
+            Message::Message { text } => {
+                println!("Received message from node {}: {}", from, text);
+            }
+            Message::Direct { to, encrypted } => {
+                if to != secret_key.public() {
+                    // not for us
+                    return Ok(());
                 }
+                let mut buffer = encrypted;
+                secret_key.shared(&from).open(&mut buffer)?;
+                let message = std::str::from_utf8(&buffer)?;
+                println!("got encrypted message from {}: {}", from, message);
             }
-            other => {
-                tracing::info!("Got other event: {:?}", other);
-            }
-        },
-        Event::Lagged => {
-            tracing::info!("Missed some messages");
         }
+    } else {
+        tracing::info!("Got other event: {:?}", event);
     }
+    Ok(())
 }
 
-async fn parse_as_command(line: String, secret_key: &SecretKey) -> anyhow::Result<Option<Command>> {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-    let msg = Message::Message {
-        text: trimmed.to_string(),
+async fn parse_as_command(text: String, secret_key: &SecretKey) -> anyhow::Result<Option<Command>> {
+    let msg = if let Some(private) = text.strip_prefix("/for ") {
+        // yeah yeah, there are nicer ways to do this, sue me...
+        let mut parts = private.splitn(2, ' ');
+        let Some(to) = parts.next() else {
+            anyhow::bail!("missing recipient");
+        };
+        let Some(msg) = parts.next() else {
+            anyhow::bail!("missing message");
+        };
+        let Ok(to) = PublicKey::from_str(to) else {
+            anyhow::bail!("invalid recipient");
+        };
+        let mut encrypted = msg.as_bytes().to_vec();
+        // encrypt the data in place
+        secret_key.shared(&to).seal(&mut encrypted);
+        Message::Direct { to, encrypted }
+    } else {
+        Message::Message { text }
     };
     let signed = SignedMessage::sign_and_encode(secret_key, &msg)?;
     let cmd = Command::Broadcast(signed.into());
@@ -141,7 +155,9 @@ async fn main() -> anyhow::Result<()> {
             message = stream.next() => {
                 // got a message from the gossip network
                 if let Some(Ok(event)) = message {
-                    handle_event(event).await;
+                    if let Err(cause) = handle_event(event, &secret_key).await {
+                        tracing::warn!("error handling message: {}", cause);
+                    }
                 } else {
                     break;
                 }

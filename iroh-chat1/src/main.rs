@@ -14,31 +14,20 @@ struct Args {
     tickets: Vec<NodeTicket>,
 }
 
-async fn handle_event(event: Event) {
-    match event {
-        Event::Gossip(ev) => match ev {
-            GossipEvent::Received(msg) => {
-                println!(
-                    "Received message from node {}: {:?}",
-                    msg.delivered_from, msg.content
-                );
-            }
-            other => {
-                tracing::info!("Got other event: {:?}", other);
-            }
-        },
-        Event::Lagged => {
-            tracing::info!("Missed some messages");
-        }
+async fn handle_event(event: Event) -> anyhow::Result<()> {
+    if let Event::Gossip(GossipEvent::Received(msg)) = event {
+        println!(
+            "Received message from node {}: {:?}",
+            msg.delivered_from, msg.content
+        );
+    } else {
+        tracing::info!("Got other event: {:?}", event);
     }
+    Ok(())
 }
 
-async fn parse_as_command(line: String) -> anyhow::Result<Option<Command>> {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-    let cmd = Command::Broadcast(trimmed.as_bytes().to_vec().into());
+async fn parse_as_command(text: String) -> anyhow::Result<Option<Command>> {
+    let cmd = Command::Broadcast(text.as_bytes().to_vec().into());
     Ok(Some(cmd))
 }
 
@@ -84,7 +73,9 @@ async fn main() -> anyhow::Result<()> {
             message = stream.next() => {
                 // got a message from the gossip network
                 if let Some(Ok(event)) = message {
-                    handle_event(event).await;
+                    if let Err(cause) = handle_event(event).await {
+                        tracing::warn!("error handling message: {}", cause);
+                    }
                 } else {
                     break;
                 }
