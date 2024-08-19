@@ -109,7 +109,7 @@ async fn accept() -> anyhow::Result<()> {
         "dns.iroh.link"
     );
     while let Some(connecting) = endpoint.accept().await {
-        // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
+        // handle each connection sequentially.
         if let Err(cause) = handle_connecting(&public_key, connecting).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }

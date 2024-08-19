@@ -3,8 +3,13 @@ use futures::{SinkExt, StreamExt};
 use iroh::{
     base::node_addr::AddrInfoOptions,
     gossip::net::{Command, Event, GossipEvent},
-    net::ticket::NodeTicket,
+    net::{
+        key::{PublicKey, SecretKey, Signature},
+        ticket::NodeTicket,
+    },
 };
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncBufReadExt, select};
 use util::wait_for_relay;
 mod util;
@@ -14,14 +19,62 @@ struct Args {
     tickets: Vec<NodeTicket>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+enum Message {
+    Message { text: String },
+    // more message types will be added later
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SignedMessage {
+    from: PublicKey,
+    data: Vec<u8>,
+    signature: Signature,
+    uid: u128,
+}
+
+impl SignedMessage {
+    pub fn verify_and_decode(bytes: &[u8]) -> anyhow::Result<(PublicKey, Message)> {
+        let signed_message: Self = postcard::from_bytes(bytes)?;
+        let key: PublicKey = signed_message.from;
+        key.verify(&signed_message.data, &signed_message.signature)?;
+        let message: Message = postcard::from_bytes(&signed_message.data)?;
+        Ok((signed_message.from, message))
+    }
+
+    pub fn sign_and_encode(secret_key: &SecretKey, message: &Message) -> anyhow::Result<Vec<u8>> {
+        let data = postcard::to_stdvec(&message)?;
+        let signature = secret_key.sign(&data);
+        let from: PublicKey = secret_key.public();
+        let uid = rand::thread_rng().gen();
+        let signed_message = Self {
+            from,
+            data,
+            signature,
+            uid,
+        };
+        let encoded = postcard::to_stdvec(&signed_message)?;
+        Ok(encoded)
+    }
+}
+
 async fn handle_event(event: Event) {
     match event {
         Event::Gossip(ev) => match ev {
             GossipEvent::Received(msg) => {
-                println!(
-                    "Received message from node {}: {:?}",
-                    msg.delivered_from, msg.content
-                );
+                let Ok((from, msg)) = SignedMessage::verify_and_decode(&msg.content) else {
+                    tracing::warn!(
+                        "Failed to verify message from node {}: {:?}",
+                        msg.delivered_from,
+                        msg.content
+                    );
+                    return;
+                };
+                match msg {
+                    Message::Message { text } => {
+                        println!("Received message from node {}: {}", from, text);
+                    }
+                }
             }
             other => {
                 tracing::info!("Got other event: {:?}", other);
@@ -33,12 +86,16 @@ async fn handle_event(event: Event) {
     }
 }
 
-async fn parse_as_command(line: String) -> anyhow::Result<Option<Command>> {
+async fn parse_as_command(line: String, secret_key: &SecretKey) -> anyhow::Result<Option<Command>> {
     let trimmed = line.trim();
     if trimmed.is_empty() {
         return Ok(None);
     }
-    let cmd = Command::Broadcast(trimmed.as_bytes().to_vec().into());
+    let msg = Message::Message {
+        text: trimmed.to_string(),
+    };
+    let signed = SignedMessage::sign_and_encode(secret_key, &msg)?;
+    let cmd = Command::Broadcast(signed.into());
     Ok(Some(cmd))
 }
 
@@ -52,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
     let secret_key = util::get_or_create_secret()?;
     // create a new Iroh node, giving it the secret key
     let iroh = iroh::node::Node::memory()
-        .secret_key(secret_key)
+        .secret_key(secret_key.clone())
         .spawn()
         .await?;
     // wait for the node to figure out its own home relay
@@ -92,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
             line = stdin.next_line() => {
                 if let Ok(Some(line)) = line {
                     // got a line from stdin
-                    match parse_as_command(line).await {
+                    match parse_as_command(line, &secret_key).await {
                         Ok(cmd) => {
                             if let Some(cmd) = cmd {
                                 sink.send(cmd).await?;

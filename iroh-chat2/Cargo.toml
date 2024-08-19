@@ -1,0 +1,17 @@
+[package]
+name = "iroh-chat2"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.86"
+clap = { version = "4.5.16", features = ["derive"] }
+futures = "0.3.30"
+iroh = "0.22.0"
+postcard = "1.0.8"
+rand = "0.8.5"
+serde = "1.0.208"
+tokio = "1.39.3"
+tracing = "0.1.40"
+# logging to console
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

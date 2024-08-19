@@ -2001,6 +2001,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "iroh-chat-diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh",
+ "postcard",
+ "rand",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "iroh-chat1"
 version = "0.1.0"
 dependencies = [
@@ -2008,6 +2024,38 @@ dependencies = [
  "clap",
  "futures",
  "iroh",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "iroh-chat2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh",
+ "postcard",
+ "rand",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "iroh-chat3"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh",
+ "postcard",
+ "rand",
+ "serde",
  "tokio",
  "tracing",
  "tracing-subscriber",

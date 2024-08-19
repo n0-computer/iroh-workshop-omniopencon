@@ -12,5 +12,8 @@ members = [
     "pipe2",
     "pipe3",
     "pipe4",
+    "iroh-chat-diy",
     "iroh-chat1",
+    "iroh-chat2",
+    "iroh-chat3",
 ]

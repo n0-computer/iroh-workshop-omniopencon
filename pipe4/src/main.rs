@@ -113,7 +113,7 @@ async fn accept() -> anyhow::Result<()> {
     println!("To see DHT publishing details, run with");
     println!("RUST_LOG=iroh_pkarr_node_discovery=trace");
     while let Some(connecting) = endpoint.accept().await {
-        // handle each incoming connection in separate tasks.        // handle each incoming connection in separate tasks.
+        // handle each connection sequentially.
         if let Err(cause) = handle_connecting(&public_key, connecting).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }
