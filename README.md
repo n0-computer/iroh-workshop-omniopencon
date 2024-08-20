@@ -4,6 +4,11 @@
 
 https://iroh.computer/discord
 
+## Slides
+
+https://tinyurl.com/2bb23ybx
+
+
 You can run each step using e.g.
 
 ```
