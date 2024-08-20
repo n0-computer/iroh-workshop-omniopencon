@@ -1,5 +1,5 @@
 [package]
-name = "chat4"
+name = "raw-chat2"
 version = "0.1.0"
 edition = "2021"
 
@@ -28,5 +28,4 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 zbase32 = "0.1.2"
 serde = { version = "1", features = ["derive"] }
 postcard = "1"
-rand = "0.8.5"
 futures = "0.3.30"

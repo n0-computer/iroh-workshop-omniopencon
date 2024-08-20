@@ -1,26 +1,20 @@
 use std::str::FromStr;
 
 use clap::Parser;
-use futures::StreamExt;
-use iroh_base::node_addr::AddrInfoOptions;
-use iroh_gossip::{
-    net::{Event, Gossip, GossipEvent, GossipTopic},
-    proto::TopicId,
+use futures::{SinkExt, StreamExt};
+use iroh::{
+    base::node_addr::AddrInfoOptions,
+    gossip::net::{Command, Event, GossipEvent},
+    net::{
+        key::{PublicKey, SecretKey, Signature},
+        ticket::NodeTicket,
+    },
 };
-use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher, ConcurrentDiscovery},
-    key::{PublicKey, SecretKey, Signature},
-    ticket::NodeTicket,
-    Endpoint,
-};
-
-mod util;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    select,
-};
-use util::*;
+use tokio::{io::AsyncBufReadExt, select};
+use util::wait_for_relay;
+mod util;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -28,10 +22,18 @@ struct Args {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+enum Message {
+    Message { text: String },
+    Direct { to: PublicKey, encrypted: Vec<u8> },
+    // more message types will be added later
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SignedMessage {
     from: PublicKey,
     data: Vec<u8>,
     signature: Signature,
+    uid: u128,
 }
 
 impl SignedMessage {
@@ -47,134 +49,47 @@ impl SignedMessage {
         let data = postcard::to_stdvec(&message)?;
         let signature = secret_key.sign(&data);
         let from: PublicKey = secret_key.public();
+        let uid = rand::thread_rng().gen();
         let signed_message = Self {
             from,
             data,
             signature,
+            uid,
         };
         let encoded = postcard::to_stdvec(&signed_message)?;
         Ok(encoded)
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-enum Message {
-    Message { text: String },
-    Direct { to: PublicKey, encrypted: Vec<u8> },
-    // more message types will be added later
-}
-
-/// Handle incoming connections by dispatching them to the right handler.
-async fn handle_connections(endpoint: Endpoint, gossip: Gossip) -> anyhow::Result<()> {
-    while let Some(mut connecting) = endpoint.accept().await {
-        let gossip = gossip.clone();
-        tokio::spawn(async move {
-            let alpn = connecting.alpn().await?;
-            let connection = connecting.await?;
-            if &alpn == iroh_gossip::net::GOSSIP_ALPN {
-                gossip.handle_connection(connection).await?;
+async fn handle_event(event: Event, secret_key: &SecretKey) -> anyhow::Result<()> {
+    if let Event::Gossip(GossipEvent::Received(msg)) = event {
+        let Ok((from, msg)) = SignedMessage::verify_and_decode(&msg.content) else {
+            tracing::warn!("Failed to verify message {:?}", msg.content);
+            return Ok(());
+        };
+        match msg {
+            Message::Message { text } => {
+                println!("Received message from node {}: {}", from, text);
             }
-            anyhow::Ok(())
-        });
-    }
-    Ok(())
-}
-
-async fn handle_event(from: PublicKey, secret_key: SecretKey, msg: Message) -> anyhow::Result<()> {
-    match msg {
-        Message::Message { text } => {
-            println!("{}> {}", from, text);
-        }
-        Message::Direct { to, encrypted } => {
-            if to != secret_key.public() {
-                // not for us
-                return Ok(());
-            }
-            let mut buffer = encrypted;
-            secret_key.shared(&from).open(&mut buffer)?;
-            let message = std::str::from_utf8(&buffer)?;
-            println!("got encrypted message from {}: {}", from, message);
-        } // more message types will be added later
-    }
-    Ok(())
-}
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
-    let args = Args::parse();
-    let secret_key = get_or_create_secret()?;
-    let _public_key = secret_key.public();
-    let topic = TopicId::from([0u8; 32]);
-    let discovery = Box::new(ConcurrentDiscovery::from_services(vec![
-        Box::new(DnsDiscovery::n0_dns()),
-        Box::new(PkarrPublisher::n0_dns(secret_key.clone())),
-    ]));
-
-    let endpoint = Endpoint::builder()
-        .secret_key(secret_key.clone())
-        .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
-        .discovery(discovery)
-        .bind(0)
-        .await?;
-    let mut my_addr = endpoint.node_addr().await?;
-    let ticket = NodeTicket::new(my_addr.clone())?;
-    println!("I am {}", my_addr.node_id);
-    println!("Connect to me using {}", ticket);
-    my_addr.apply_options(AddrInfoOptions::Id);
-    let short = NodeTicket::new(my_addr.clone())?;
-    println!("Connect to me using {}", short);
-    wait_for_relay(&endpoint).await?;
-    // add all the info from the tickets to the endpoint
-    let mut ids = Vec::new();
-    for ticket in &args.tickets {
-        let addr = ticket.node_addr();
-        endpoint.add_node_addr(addr.clone()).ok();
-        ids.push(addr.node_id);
-    }
-    let gossip = Gossip::from_endpoint(
-        endpoint.clone(),
-        iroh_gossip::proto::Config::default(),
-        &my_addr.info,
-    );
-
-    tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    let mut gossip = gossip.join(topic, ids).await?;
-    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
-    loop {
-        select! {
-            message = gossip.next() => {
-                if let Some(Ok(event)) = message {
-                    if let Event::Gossip(GossipEvent::Received(message)) = event {
-                        let (from, msg) = SignedMessage::verify_and_decode(&message.content)?;
-                        if let Err(cause) = handle_event(from, secret_key.clone(), msg).await {
-                            tracing::warn!("error handling message: {}", cause);
-                        }
-                    }
-                } else {
-                    break;
+            Message::Direct { to, encrypted } => {
+                if to != secret_key.public() {
+                    // not for us
+                    return Ok(());
                 }
-            }
-            line = stdin.next_line() => {
-                if let Ok(Some(line)) = line {
-                    if let Err(cause) = send_message(&mut gossip, line, &secret_key).await {
-                        tracing::warn!("error sending message: {}", cause);
-                    }
-                } else {
-                    break;
-                }
+                let mut buffer = encrypted;
+                secret_key.shared(&from).open(&mut buffer)?;
+                let message = std::str::from_utf8(&buffer)?;
+                println!("got encrypted message from {}: {}", from, message);
             }
         }
+    } else {
+        tracing::info!("Got other event: {:?}", event);
     }
     Ok(())
 }
 
-async fn send_message(
-    gossip: &mut GossipTopic,
-    line: String,
-    secret_key: &SecretKey,
-) -> anyhow::Result<()> {
-    let msg = if let Some(private) = line.strip_prefix("/for ") {
+async fn parse_as_command(text: String, secret_key: &SecretKey) -> anyhow::Result<Option<Command>> {
+    let msg = if let Some(private) = text.strip_prefix("/for ") {
         // yeah yeah, there are nicer ways to do this, sue me...
         let mut parts = private.splitn(2, ' ');
         let Some(to) = parts.next() else {
@@ -191,9 +106,78 @@ async fn send_message(
         secret_key.shared(&to).seal(&mut encrypted);
         Message::Direct { to, encrypted }
     } else {
-        Message::Message { text: line }
+        Message::Message { text }
     };
-    let msg = SignedMessage::sign_and_encode(secret_key, &msg)?;
-    gossip.broadcast(msg.into()).await?;
+    let signed = SignedMessage::sign_and_encode(secret_key, &msg)?;
+    let cmd = Command::Broadcast(signed.into());
+    Ok(Some(cmd))
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // log to console, using the RUST_LOG environment variable
+    tracing_subscriber::fmt::init();
+    // parse command line arguments
+    let args = Args::parse();
+    // get or create the secret key / node identity
+    let secret_key = util::get_or_create_secret()?;
+    // create a new Iroh node, giving it the secret key
+    let iroh = iroh::node::Node::memory()
+        .secret_key(secret_key.clone())
+        .spawn()
+        .await?;
+    // wait for the node to figure out its own home relay
+    wait_for_relay(iroh.endpoint()).await?;
+    // print node addr and ticket, both long and short
+    let mut my_addr = iroh.endpoint().node_addr().await?;
+    let ticket = NodeTicket::new(my_addr.clone())?;
+    println!("I am {}", my_addr.node_id);
+    println!("Connect to me using cargo run {}", ticket);
+    my_addr.apply_options(AddrInfoOptions::Id);
+    let short = NodeTicket::new(my_addr.clone())?;
+    println!("..or using          cargo run {}", short);
+    // add all the info from the tickets to the endpoint
+    // also extract the node IDs to use as bootstrap nodes
+    let mut bootstrap = Vec::new();
+    for ticket in &args.tickets {
+        let addr = ticket.node_addr();
+        iroh.endpoint().add_node_addr(addr.clone()).ok();
+        bootstrap.push(addr.node_id);
+    }
+    // hardcoded topic
+    let topic = [0u8; 32];
+    // subscribe to the topic, giving the bootstrap nodes
+    // if the tickets contained additional info, this is available in the address book of the endpoint
+    let (mut sink, mut stream) = iroh.gossip().subscribe(topic, bootstrap).await?;
+    let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
+    loop {
+        select! {
+            message = stream.next() => {
+                // got a message from the gossip network
+                if let Some(Ok(event)) = message {
+                    if let Err(cause) = handle_event(event, &secret_key).await {
+                        tracing::warn!("error handling message: {}", cause);
+                    }
+                } else {
+                    break;
+                }
+            }
+            line = stdin.next_line() => {
+                if let Ok(Some(line)) = line {
+                    // got a line from stdin
+                    match parse_as_command(line, &secret_key).await {
+                        Ok(cmd) => {
+                            if let Some(cmd) = cmd {
+                                sink.send(cmd).await?;
+                            }
+                        }
+                        Err(cause) => {
+                            tracing::warn!("error parsing command: {}", cause);
+                        }
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }

@@ -1,96 +1,98 @@
 use clap::Parser;
-use futures::StreamExt;
-use iroh_base::node_addr::AddrInfoOptions;
-use iroh_gossip::{net::Gossip, proto::TopicId};
-use iroh_net::{
-    discovery::{dns::DnsDiscovery, pkarr::PkarrPublisher, ConcurrentDiscovery},
-    ticket::NodeTicket,
-    Endpoint,
+use futures::{SinkExt, StreamExt};
+use iroh::{
+    base::node_addr::AddrInfoOptions,
+    gossip::net::{Command, Event, GossipEvent},
+    net::ticket::NodeTicket,
 };
-
+use tokio::{io::AsyncBufReadExt, select};
+use util::wait_for_relay;
 mod util;
-use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    select,
-};
-use util::*;
 
 #[derive(Debug, Parser)]
 struct Args {
     tickets: Vec<NodeTicket>,
 }
 
-/// Handle incoming connections by dispatching them to the right handler.
-async fn handle_connections(endpoint: Endpoint, gossip: Gossip) -> anyhow::Result<()> {
-    while let Some(mut connecting) = endpoint.accept().await {
-        let gossip = gossip.clone();
-        tokio::spawn(async move {
-            let alpn = connecting.alpn().await?;
-            let connection = connecting.await?;
-            if &alpn == iroh_gossip::net::GOSSIP_ALPN {
-                gossip.handle_connection(connection).await?;
-            }
-            anyhow::Ok(())
-        });
+async fn handle_event(event: Event) -> anyhow::Result<()> {
+    if let Event::Gossip(GossipEvent::Received(msg)) = event {
+        println!(
+            "Received message from node {}: {:?}",
+            msg.delivered_from, msg.content
+        );
+    } else {
+        tracing::info!("Got other event: {:?}", event);
     }
     Ok(())
 }
 
+async fn parse_as_command(text: String) -> anyhow::Result<Option<Command>> {
+    let cmd = Command::Broadcast(text.as_bytes().to_vec().into());
+    Ok(Some(cmd))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // log to console, using the RUST_LOG environment variable
     tracing_subscriber::fmt::init();
+    // parse command line arguments
     let args = Args::parse();
-    let secret_key = get_or_create_secret()?;
-    let _public_key = secret_key.public();
-    let topic = TopicId::from([0u8; 32]);
-    let discovery = Box::new(ConcurrentDiscovery::from_services(vec![
-        Box::new(DnsDiscovery::n0_dns()),
-        Box::new(PkarrPublisher::n0_dns(secret_key.clone())),
-    ]));
-
-    let endpoint = Endpoint::builder()
-        .secret_key(secret_key.clone())
-        .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
-        .discovery(discovery)
-        .bind(0)
+    // get or create the secret key / node identity
+    let secret_key = util::get_or_create_secret()?;
+    // create a new Iroh node, giving it the secret key
+    let iroh = iroh::node::Node::memory()
+        .secret_key(secret_key)
+        .spawn()
         .await?;
-    let mut my_addr = endpoint.node_addr().await?;
+    // wait for the node to figure out its own home relay
+    wait_for_relay(iroh.endpoint()).await?;
+    // print node addr and ticket, both long and short
+    let mut my_addr = iroh.endpoint().node_addr().await?;
     let ticket = NodeTicket::new(my_addr.clone())?;
     println!("I am {}", my_addr.node_id);
-    println!("Connect to me using {}", ticket);
+    println!("Connect to me using cargo run {}", ticket);
     my_addr.apply_options(AddrInfoOptions::Id);
     let short = NodeTicket::new(my_addr.clone())?;
-    println!("Connect to me using {}", short);
-    wait_for_relay(&endpoint).await?;
+    println!("..or using          cargo run {}", short);
     // add all the info from the tickets to the endpoint
-    let mut ids = Vec::new();
+    // also extract the node IDs to use as bootstrap nodes
+    let mut bootstrap = Vec::new();
     for ticket in &args.tickets {
         let addr = ticket.node_addr();
-        endpoint.add_node_addr(addr.clone()).ok();
-        ids.push(addr.node_id);
+        iroh.endpoint().add_node_addr(addr.clone()).ok();
+        bootstrap.push(addr.node_id);
     }
-    let gossip = Gossip::from_endpoint(
-        endpoint.clone(),
-        iroh_gossip::proto::Config::default(),
-        &my_addr.info,
-    );
-    tokio::spawn(handle_connections(endpoint, gossip.clone()));
-    let mut gossip = gossip.join(topic, ids).await?;
-    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
+    // hardcoded topic
+    let topic = [0u8; 32];
+    // subscribe to the topic, giving the bootstrap nodes
+    // if the tickets contained additional info, this is available in the address book of the endpoint
+    let (mut sink, mut stream) = iroh.gossip().subscribe(topic, bootstrap).await?;
+    let mut stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
     loop {
         select! {
-            message = gossip.next() => {
+            message = stream.next() => {
+                // got a message from the gossip network
                 if let Some(Ok(event)) = message {
-                    println!("{:?}", event);
+                    if let Err(cause) = handle_event(event).await {
+                        tracing::warn!("error handling message: {}", cause);
+                    }
                 } else {
                     break;
                 }
             }
             line = stdin.next_line() => {
                 if let Ok(Some(line)) = line {
-                    gossip.broadcast(line.into_bytes().into()).await?;
-                } else {
-                    break;
+                    // got a line from stdin
+                    match parse_as_command(line).await {
+                        Ok(cmd) => {
+                            if let Some(cmd) = cmd {
+                                sink.send(cmd).await?;
+                            }
+                        }
+                        Err(cause) => {
+                            tracing::warn!("error parsing command: {}", cause);
+                        }
+                    }
                 }
             }
         }

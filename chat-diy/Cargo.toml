@@ -1,5 +1,5 @@
 [package]
-name = "iroh-chat-diy"
+name = "chat-diy"
 version = "0.1.0"
 edition = "2021"
 

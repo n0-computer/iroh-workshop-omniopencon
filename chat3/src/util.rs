@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use iroh_net::{key::SecretKey, Endpoint};
+use iroh::net::{key::SecretKey, Endpoint};
 
 // Wait for the endpoint to figure out its relay address.
 pub async fn wait_for_relay(endpoint: &Endpoint) -> anyhow::Result<()> {

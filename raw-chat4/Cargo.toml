@@ -1,0 +1,32 @@
+[package]
+name = "raw-chat4"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# error handling
+anyhow = "1"
+# command line argument parsing
+clap = { version = "4.5.4", features = ["derive"] }
+# base types
+iroh-base = { version = "0.22" }
+# iroh networking
+iroh-net = { version = "0.22" }
+# iroh gossip protocol
+iroh-gossip = { version = "0.22" }
+# quinn QUIC implementation
+quinn = "0.10.2"
+# async runtime
+tokio = { version = "1.37.0", features = ["full"] }
+# logging
+tracing = "0.1.40"
+# logging to console
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+# zbase32 crate, just for printing zbase32 node ids
+zbase32 = "0.1.2"
+serde = { version = "1", features = ["derive"] }
+postcard = "1"
+rand = "0.8.5"
+futures = "0.3.30"

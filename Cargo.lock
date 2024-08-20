@@ -408,22 +408,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "chat-diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh",
+ "postcard",
+ "rand",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "chat1"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-channel",
  "clap",
  "futures",
- "iroh-base",
- "iroh-gossip",
- "iroh-net",
- "quinn 0.10.2",
+ "iroh",
  "tokio",
- "tokio-stream",
  "tracing",
  "tracing-subscriber",
- "zbase32",
 ]
 
 [[package]]
@@ -433,16 +443,13 @@ dependencies = [
  "anyhow",
  "clap",
  "futures",
- "iroh-base",
- "iroh-gossip",
- "iroh-net",
+ "iroh",
  "postcard",
- "quinn 0.10.2",
+ "rand",
  "serde",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zbase32",
 ]
 
 [[package]]
@@ -452,52 +459,13 @@ dependencies = [
  "anyhow",
  "clap",
  "futures",
- "iroh-base",
- "iroh-gossip",
- "iroh-net",
+ "iroh",
  "postcard",
- "quinn 0.10.2",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zbase32",
-]
-
-[[package]]
-name = "chat4"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "iroh-base",
- "iroh-gossip",
- "iroh-net",
- "postcard",
- "quinn 0.10.2",
  "rand",
  "serde",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "zbase32",
-]
-
-[[package]]
-name = "chat_diy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "iroh-base",
- "iroh-gossip",
- "iroh-net",
- "quinn 0.10.2",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zbase32",
 ]
 
 [[package]]
@@ -2001,67 +1969,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iroh-chat-diy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "iroh",
- "postcard",
- "rand",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "iroh-chat1"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "iroh",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "iroh-chat2"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "iroh",
- "postcard",
- "rand",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "iroh-chat3"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures",
- "iroh",
- "postcard",
- "rand",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "iroh-docs"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2972,6 +2879,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pipe-diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "iroh-base",
+ "iroh-net",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "pipe1"
 version = "0.1.0"
 dependencies = [
@@ -3025,19 +2945,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zbase32",
-]
-
-[[package]]
-name = "pipe_diy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "iroh-base",
- "iroh-net",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -3531,6 +3438,99 @@ dependencies = [
  "inplace-vec-builder",
  "ref-cast",
  "smallvec",
+]
+
+[[package]]
+name = "raw-chat-diy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "quinn 0.10.2",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
+]
+
+[[package]]
+name = "raw-chat1"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "clap",
+ "futures",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "quinn 0.10.2",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
+]
+
+[[package]]
+name = "raw-chat2"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "postcard",
+ "quinn 0.10.2",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
+]
+
+[[package]]
+name = "raw-chat3"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "postcard",
+ "quinn 0.10.2",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
+]
+
+[[package]]
+name = "raw-chat4"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures",
+ "iroh-base",
+ "iroh-gossip",
+ "iroh-net",
+ "postcard",
+ "quinn 0.10.2",
+ "rand",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbase32",
 ]
 
 [[package]]
