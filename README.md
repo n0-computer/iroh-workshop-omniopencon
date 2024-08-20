@@ -8,6 +8,10 @@ https://iroh.computer/discord
 
 https://tinyurl.com/2bb23ybx
 
+## Hackmd
+
+https://hackmd.io/_nQqsdplTZiyZ4DprCBGMQ?view
+
 
 You can run each step using e.g.
 
