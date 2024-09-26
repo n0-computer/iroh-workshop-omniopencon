@@ -6,11 +6,11 @@ https://iroh.computer/discord
 
 ## Slides
 
-https://tinyurl.com/2bb23ybx
+https://tinyurl.com/3sc3ecx8
 
 ## Hackmd
 
-https://hackmd.io/_nQqsdplTZiyZ4DprCBGMQ?view
+https://hackmd.io/LI1EwvgYTvC7I92aKvVgYA?view
 
 
 You can run each step using e.g.
