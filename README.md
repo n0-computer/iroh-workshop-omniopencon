@@ -1,4 +1,4 @@
-# Code for the iroh workshop @ Web3Summit 2024
+# Code for the iroh workshop @ OmniOpenCon 2024
 
 ## Discord (to exchange tickets etc)
 
