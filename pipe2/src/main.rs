@@ -12,7 +12,7 @@ mod util;
 use util::*;
 
 /// The ALPN we use for this protocol.
-const PIPE_ALPN: &[u8] = b"WEB3_PIPE";
+const PIPE_ALPN: &[u8] = b"PIPE";
 
 #[derive(Debug, clap::Parser)]
 struct Args {
@@ -31,7 +31,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let endpoint = Endpoint::builder()
         .secret_key(secret_key)
         .discovery(Box::new(discovery))
-        .bind(0)
+        .bind()
         .await?;
     let addr = ticket.node_addr().clone();
     info!("connecting to {:?}", addr);
@@ -51,10 +51,11 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
 /// Handle a single incoming connection.
 async fn handle_connecting(
     my_id: &PublicKey,
-    mut connecting: iroh_net::endpoint::Connecting,
+    incoming: iroh_net::endpoint::Incoming,
 ) -> anyhow::Result<()> {
     info!("connection attempt");
     // accept the connection and get the ALPN and the bidirectional stream.
+    let mut connecting = incoming.accept()?;
     let alpn = connecting.alpn().await?;
     let connection = connecting.await?;
     let remote_node_id = endpoint::get_remote_node_id(&connection)?;
@@ -92,7 +93,7 @@ async fn accept() -> anyhow::Result<()> {
         .secret_key(secret_key)
         .discovery(Box::new(discovery))
         .alpns(vec![PIPE_ALPN.to_vec()])
-        .bind(0)
+        .bind()
         .await?;
     wait_for_relay(&endpoint).await?;
     let addr = endpoint.node_addr().await?;
@@ -108,9 +109,9 @@ async fn accept() -> anyhow::Result<()> {
         z32_node_id(&public_key),
         "dns.iroh.link"
     );
-    while let Some(connecting) = endpoint.accept().await {
+    while let Some(incoming) = endpoint.accept().await {
         // handle each connection sequentially.
-        if let Err(cause) = handle_connecting(&public_key, connecting).await {
+        if let Err(cause) = handle_connecting(&public_key, incoming).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }
     }

@@ -10,7 +10,7 @@ mod util;
 use util::*;
 
 /// The ALPN we use for this protocol.
-const PIPE_ALPN: &[u8] = b"WEB3_PIPE";
+const PIPE_ALPN: &[u8] = b"PIPE";
 
 #[derive(Debug, clap::Parser)]
 struct Args {
@@ -24,7 +24,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
     let public_key = secret_key.public();
     // Create a new Endpoint with the secret key.
     // We bind to port 0 to let the OS choose a random port.
-    let endpoint = Endpoint::builder().secret_key(secret_key).bind(0).await?;
+    let endpoint = Endpoint::builder().secret_key(secret_key).bind().await?;
     let addr = ticket.node_addr().clone();
     info!("connecting to {:?}", addr);
     let connection = endpoint.connect(addr, PIPE_ALPN).await?;
@@ -43,10 +43,11 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
 /// Handle a single incoming connection.
 async fn handle_connecting(
     my_id: &PublicKey,
-    mut connecting: iroh_net::endpoint::Connecting,
+    incoming: iroh_net::endpoint::Incoming,
 ) -> anyhow::Result<()> {
     info!("connection attempt");
     // accept the connection and get the ALPN and the bidirectional stream.
+    let mut connecting = incoming.accept()?;
     let alpn: Vec<u8> = connecting.alpn().await?;
     let connection = connecting.await?;
     let remote_node_id = get_remote_node_id(&connection)?;
@@ -81,16 +82,16 @@ async fn accept() -> anyhow::Result<()> {
     let endpoint = Endpoint::builder()
         .secret_key(secret_key)
         .alpns(vec![PIPE_ALPN.to_vec()])
-        .bind(0)
+        .bind()
         .await?;
     wait_for_relay(&endpoint).await?;
     let addr = endpoint.node_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
     println!("ticket: {}", NodeTicket::new(addr)?);
-    while let Some(connecting) = endpoint.accept().await {
+    while let Some(incoming) = endpoint.accept().await {
         // handle each connection sequentially.
-        if let Err(cause) = handle_connecting(&public_key, connecting).await {
+        if let Err(cause) = handle_connecting(&public_key, incoming).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }
     }

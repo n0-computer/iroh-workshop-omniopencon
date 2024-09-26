@@ -66,9 +66,10 @@ enum Message {
 
 /// Handle incoming connections by dispatching them to the right handler.
 async fn handle_connections(endpoint: Endpoint, gossip: Gossip) -> anyhow::Result<()> {
-    while let Some(mut connecting) = endpoint.accept().await {
+    while let Some(incoming) = endpoint.accept().await {
         let gossip = gossip.clone();
         tokio::spawn(async move {
+            let mut connecting = incoming.accept()?;
             let alpn = connecting.alpn().await?;
             let connection = connecting.await?;
             if &alpn == iroh_gossip::net::GOSSIP_ALPN {
@@ -115,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
         .secret_key(secret_key.clone())
         .alpns(vec![iroh_gossip::net::GOSSIP_ALPN.to_vec()])
         .discovery(discovery)
-        .bind(0)
+        .bind()
         .await?;
     let mut my_addr = endpoint.node_addr().await?;
     let ticket = NodeTicket::new(my_addr.clone())?;

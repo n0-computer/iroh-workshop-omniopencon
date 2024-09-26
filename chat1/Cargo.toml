@@ -7,7 +7,7 @@ edition = "2021"
 anyhow = "1.0.86"
 clap = { version = "4.5.16", features = ["derive"] }
 futures = "0.3.30"
-iroh = "0.22.0"
+iroh = "0.25.0"
 tokio = "1.39.3"
 tracing = "0.1.40"
 # logging to console

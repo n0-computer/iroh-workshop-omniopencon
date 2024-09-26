@@ -11,7 +11,7 @@ mod util;
 use util::*;
 
 /// The ALPN we use for this protocol.
-const PIPE_ALPN: &[u8] = b"WEB3_PIPE";
+const PIPE_ALPN: &[u8] = b"PIPE";
 
 #[derive(Debug, clap::Parser)]
 struct Args {

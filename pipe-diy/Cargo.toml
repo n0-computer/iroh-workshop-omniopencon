@@ -11,9 +11,9 @@ anyhow = "1"
 # command line argument parsing
 clap = { version = "4.5.4", features = ["derive"] }
 # base types
-iroh-base = "0.22"
+iroh-base = "0.25"
 # iroh networking
-iroh-net = "0.22"
+iroh-net = "0.25"
 # async runtime
 tokio = { version = "1.37.0", features = ["full"] }
 # logging
