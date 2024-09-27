@@ -31,10 +31,15 @@ cargo install iroh-cli`
 
 ## Nice to have
 
+sendme and dumbpipe
 ```sh    
 cargo install dumbpipe
 cargo install sendme
 ```
+
+A dns inspection tool like `dig` or `nslookup`
+
+Alternatively use https://toolbox.googleapps.com/apps/dig/#TXT/
 
 ## Discord (to exchange tickets etc)
 

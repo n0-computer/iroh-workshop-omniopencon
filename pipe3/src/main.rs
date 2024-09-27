@@ -101,10 +101,13 @@ async fn accept() -> anyhow::Result<()> {
     let addr = endpoint.node_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
-    println!("ticket: {}", NodeTicket::new(addr.clone())?);
+    println!(
+        "Connect to me using\ncargo run {}",
+        NodeTicket::new(addr.clone())?
+    );
     let mut short = addr;
     short.apply_options(AddrInfoOptions::Id);
-    println!("short: {}", NodeTicket::new(short)?);
+    println!("Or using\ncargo run {}\n", NodeTicket::new(short)?);
     println!("To see the published info, open:");
     println!("https://app.pkarr.org/?pk={}", z32_node_id(&public_key));
     println!("To see DHT publishing details, run with");

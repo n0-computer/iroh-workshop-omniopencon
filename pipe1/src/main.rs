@@ -88,7 +88,10 @@ async fn accept() -> anyhow::Result<()> {
     let addr = endpoint.node_addr().await?;
     println!("I am {}", addr.node_id);
     println!("Listening on {:#?}", addr.info);
-    println!("ticket: {}", NodeTicket::new(addr)?);
+    println!(
+        "Connect to me using\ncargo run {}\n",
+        NodeTicket::new(addr)?
+    );
     while let Some(incoming) = endpoint.accept().await {
         // handle each connection sequentially.
         if let Err(cause) = handle_incoming(&public_key, incoming).await {
