@@ -49,7 +49,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
 }
 
 /// Handle a single incoming connection.
-async fn handle_connecting(my_id: &PublicKey, incoming: endpoint::Incoming) -> anyhow::Result<()> {
+async fn handle_incoming(my_id: &PublicKey, incoming: endpoint::Incoming) -> anyhow::Result<()> {
     info!("connection attempt");
     // accept the connection and get the ALPN and the bidirectional stream.
     let mut connecting = incoming.accept()?;
@@ -110,9 +110,9 @@ async fn accept() -> anyhow::Result<()> {
     println!("https://app.pkarr.org/?pk={}", z32_node_id(&public_key));
     println!("To see DHT publishing details, run with");
     println!("RUST_LOG=mainline::rpc=trace");
-    while let Some(connecting) = endpoint.accept().await {
+    while let Some(incoming) = endpoint.accept().await {
         // handle each connection sequentially.
-        if let Err(cause) = handle_connecting(&public_key, connecting).await {
+        if let Err(cause) = handle_incoming(&public_key, incoming).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }
     }

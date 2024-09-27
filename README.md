@@ -1,8 +1,46 @@
 # Code for the iroh workshop @ OmniOpenCon 2024
 
+# Prerequisites
+
+## Git
+
+https://git-scm.com/downloads
+
+## Rust
+
+https://www.rust-lang.org/tools/install
+```sh
+curl https://sh.rustup.rs | sh
+```
+## VS Code
+
+https://code.visualstudio.com/download
+
+## Rust Analyzer plugin
+
+https://rust-analyzer.github.io/
+- rust-analyzer also works with Emacs and Vim
+- you can install it from within vscode
+![image](https://hackmd.io/_uploads/HJxLyV6ef0.png)
+
+## Iroh CLI
+
+```sh
+cargo install iroh-cli`
+```
+
+## Nice to have
+
+```sh    
+cargo install dumbpipe
+cargo install sendme
+```
+
 ## Discord (to exchange tickets etc)
 
 https://iroh.computer/discord
+
+Use channel #Workshop
 
 ## Slides
 
@@ -48,42 +86,6 @@ Peer to peer group chat using iroh gossip protocol
 
 Same as above, but implemented using iroh-net and iroh-gossip instead of using
 iroh.
-
-# Prerequisites
-
-## Git
-
-https://git-scm.com/downloads
-
-## Rust
-
-https://www.rust-lang.org/tools/install
-```sh
-curl https://sh.rustup.rs | sh
-```
-## VS Code
-
-https://code.visualstudio.com/download
-
-## Rust Analyzer plugin
-
-https://rust-analyzer.github.io/
-- rust-analyzer also works with Emacs and Vim
-- you can install it from within vscode
-![image](https://hackmd.io/_uploads/HJxLyV6ef0.png)
-
-## Iroh CLI
-
-```sh
-cargo install iroh-cli`
-```
-
-## Nice to have
-
-```sh    
-cargo install dumbpipe
-cargo install sendme
-```
 
 ## Links
 

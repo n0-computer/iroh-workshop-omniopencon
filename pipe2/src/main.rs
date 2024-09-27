@@ -49,7 +49,7 @@ async fn connect(ticket: NodeTicket) -> anyhow::Result<()> {
 }
 
 /// Handle a single incoming connection.
-async fn handle_connecting(
+async fn handle_incoming(
     my_id: &PublicKey,
     incoming: iroh_net::endpoint::Incoming,
 ) -> anyhow::Result<()> {
@@ -111,7 +111,7 @@ async fn accept() -> anyhow::Result<()> {
     );
     while let Some(incoming) = endpoint.accept().await {
         // handle each connection sequentially.
-        if let Err(cause) = handle_connecting(&public_key, incoming).await {
+        if let Err(cause) = handle_incoming(&public_key, incoming).await {
             tracing::warn!("error handling connection: {:?}", cause);
         }
     }
