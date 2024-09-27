@@ -19,8 +19,8 @@ pub fn get_or_create_secret() -> anyhow::Result<SecretKey> {
         // Generate a new secret key and print it to the console.
         // DON'T DO THIS IN PRODUCTION!
         let secret = SecretKey::generate();
-        println!("Using SECRET={}", secret);
-        println!("To keep the node id stable, set the SECRET environment variable");
+        println!("Using SECRET={secret}");
+        println!("To keep the node id stable, use \nSECRET={secret} cargo run ...\n");
         Ok(secret)
     }
 }
